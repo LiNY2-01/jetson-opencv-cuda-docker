@@ -38,8 +38,8 @@ RUN apt-get update && \
     zlib1g-dev \
     zip \
     pkg-config \
-    libavcodec-dev \ 
-    libavformat-dev \ 
+    libavcodec-dev \
+    libavformat-dev \
     libswscale-dev \
     libtbb2 \
     libtbb-dev \
@@ -49,10 +49,8 @@ RUN apt-get update && \
     libv4l-dev \
     v4l-utils \
     libdc1394-22-dev \
-
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
-
     libgtk2.0-dev \
     libjpeg8-dev \
     libopenmpi-dev \
@@ -64,6 +62,8 @@ RUN apt-get update && \
     llvm-9-dev \
     && apt-get -y purge *libopencv* \
     && apt -y autoremove \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 
 RUN ln -sf /usr/bin/python3.8 /usr/bin/python3 && ln -sf /usr/bin/python3.8 /usr/bin/python
