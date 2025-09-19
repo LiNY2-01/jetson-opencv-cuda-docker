@@ -107,7 +107,7 @@ RUN cmake -D WITH_VTK=OFF \
     -D CMAKE_BUILD_TYPE=RELEASE \
     -D CMAKE_INSTALL_PREFIX=/usr/local/opencv ..
 
-RUN make $MAKEFLAGS 
+RUN make ${MAKEFLAGS:-j4} 
 
 RUN make install
 
