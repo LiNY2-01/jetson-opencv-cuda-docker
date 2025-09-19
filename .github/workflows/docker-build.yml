@@ -20,12 +20,12 @@ on:
 
 env:
   REGISTRY: ${{ github.event.inputs.registry || 'docker.io' }}
-  IMAGE_NAME: zauberzeug/l4t-opencv
+  IMAGE_NAME: liny2/jetson-opencv-cuda
   L4T_VERSION: 35.4.1
 
 jobs:
   build:
-    runs-on: ubuntu-latest-arm64
+    runs-on: ubuntu-22.04-arm
     strategy:
       fail-fast: false
       matrix:
