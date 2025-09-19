@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/l4t-base:35.4.1 as builder
+FROM nvcr.io/nvidia/l4t-cuda:11.4.19-devel AS builder
 
 # Source: https://github.com/dusty-nv/jetson-containers/blob/master/Dockerfile.ml 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -64,8 +64,7 @@ RUN apt-get update && \
     llvm-9-dev \
     && apt-get -y purge *libopencv* \
     && apt -y autoremove \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+
 
 RUN ln -sf /usr/bin/python3.8 /usr/bin/python3 && ln -sf /usr/bin/python3.8 /usr/bin/python
 
@@ -76,16 +75,37 @@ RUN python -m pip install numpy
 ARG OPENCV_VERSION
 ARG MAKEFLAGS
 
-WORKDIR /root
+WORKDIR /workspace
 
 RUN curl -L https://github.com/opencv/opencv/archive/${OPENCV_VERSION}.zip -o opencv-${OPENCV_VERSION}.zip && \
     curl -L https://github.com/opencv/opencv_contrib/archive/${OPENCV_VERSION}.zip -o opencv_contrib-${OPENCV_VERSION}.zip && \
     unzip opencv-${OPENCV_VERSION}.zip && \
     unzip opencv_contrib-${OPENCV_VERSION}.zip
 
-WORKDIR /root/opencv-${OPENCV_VERSION}/build
+WORKDIR /workspace/opencv-${OPENCV_VERSION}/build
 
-RUN cmake -D WITH_VTK=OFF -D BUILD_opencv_viz=OFF -DWITH_QT=OFF -DWITH_GTK=OFF -D WITH_CUDA=ON -D WITH_CUDNN=ON -D CUDA_ARCH_BIN="5.3,6.2,7.2" -D CUDA_ARCH_PTX="" -D OPENCV_GENERATE_PKGCONFIG=ON -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-${OPENCV_VERSION}/modules -D WITH_GSTREAMER=ON -D WITH_LIBV4L=ON -D BUILD_opencv_python2=OFF -D BUILD_opencv_python3=ON -D BUILD_TESTS=OFF -D BUILD_PERF_TESTS=OFF -D BUILD_EXAMPLES=OFF -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-10.2 -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local/opencv ..
+RUN cmake -D WITH_VTK=OFF \
+    -D BUILD_opencv_viz=OFF \
+    -DWITH_QT=OFF -DWITH_GTK=OFF \
+    -D WITH_CUDA=ON -D WITH_CUDNN=ON \
+    -D CUDA_ARCH_BIN="5.3,6.2,7.2,8.7" \
+    -D CUDA_ARCH_PTX="" \
+    -D OPENCV_GENERATE_PKGCONFIG=ON \
+    -D OPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-${OPENCV_VERSION}/modules \
+    -D WITH_GSTREAMER=ON \
+    -D WITH_EIGEN=ON \
+    -D EIGEN_INCLUDE_PATH=/usr/include/eigen3 \
+    -D WITH_LIBV4L=ON \
+    -D BUILD_opencv_python2=OFF \
+    -D BUILD_opencv_python3=ON \
+    -D BUILD_TESTS=OFF \
+    -D BUILD_PERF_TESTS=OFF \
+    -D BUILD_EXAMPLES=OFF \
+    -D INSTALL_PYTHON_EXAMPLES=OFF \
+    -D PYTHON3_PACKAGES_PATH=/usr/lib/python3/dist-packages \
+    -D CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda \
+    -D CMAKE_BUILD_TYPE=RELEASE \
+    -D CMAKE_INSTALL_PREFIX=/usr/local/opencv ..
 
 RUN make $MAKEFLAGS 
 
@@ -93,7 +113,7 @@ RUN make install
 
 CMD bash
 
-FROM nvcr.io/nvidia/l4t-base:35.4.1
+FROM nvcr.io/nvidia/l4t-cuda:11.4.19-runtime
 
 COPY --from=builder /usr/local/opencv /usr/local
 
@@ -109,5 +129,5 @@ RUN apt-get update \
 RUN python3 -m pip install cython numpy
 ENV PYTHONPATH "${PYTHONPATH}:/usr/local/lib/python3.6/dist-packages/"
 
-WORKDIR /root
+WORKDIR /workspace
 

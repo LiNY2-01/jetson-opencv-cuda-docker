@@ -1,0 +1,109 @@
+name: Build L4T OpenCV Docker Images
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      opencv_versions:
+        description: 'OpenCV versions to build (comma-separated)'
+        required: false
+        default: '4.6.0,4.7.0,4.8.0,4.9.0,4.10.0,4.11.0'
+      registry:
+        description: 'Docker registry'
+        required: false
+        default: 'docker.io'
+
+env:
+  REGISTRY: ${{ github.event.inputs.registry || 'docker.io' }}
+  IMAGE_NAME: zauberzeug/l4t-opencv
+  L4T_VERSION: 35.4.1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest-arm64
+    strategy:
+      fail-fast: false
+      matrix:
+        opencv_version:
+          - "4.5.5"
+          - "4.6.0"
+          - "4.7.0"
+          - "4.8.0"
+          - "4.9.0"
+          - "4.10.0"
+          - "4.11.0"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ matrix.opencv_version }}-${{ env.L4T_VERSION }}
+            type=raw,value=${{ matrix.opencv_version }}-${{ env.L4T_VERSION }}-{{sha}}
+            type=raw,value=latest,enable={{is_default_branch}},suffix=-${{ matrix.opencv_version }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            OPENCV_VERSION=${{ matrix.opencv_version }}
+            MAKEFLAGS=-j$(nproc)
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test image
+        if: github.event_name == 'pull_request'
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ matrix.opencv_version }}-${{ env.L4T_VERSION }} python3 -c "
+          import cv2
+          print(f'OpenCV version: {cv2.__version__}')
+          print(f'CUDA support: {cv2.cuda.getCudaEnabledDeviceCount() >= 0}')
+          print('OpenCV test passed!')
+          "
+
+  create-manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Create and push latest manifest
+        run: |
+          # Create a manifest for the latest OpenCV version
+          LATEST_VERSION="4.9.0"
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${LATEST_VERSION}-${{ env.L4T_VERSION }}
